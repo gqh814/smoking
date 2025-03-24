@@ -23,7 +23,6 @@ def plot_hits(start_year, end_year):
     
     # export 
     plt.savefig(f'./output/medie_stream_{start_year}_{end_year}.png')
-    plt.show()
 
 # Example usage:
 if __name__ == "__main__":
