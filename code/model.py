@@ -101,60 +101,6 @@ class DynamicModel:
                         self.Policy[t, i, j, k] = best_choice
 
 
-    def bi_vec(self):
-        print('hej3')
-
-        
-
-        # Assume the following are defined:
-        # self.S_grid, self.sigma_values, self.lambda_grid, self.b_choices, self.T, self.beta, self.utility, self.transition_S, self.prob_sigma_next_is_one, self.transition_lambda, self.V, self.Policy
-
-        # Create the meshgrid for S, sigma, and lambda
-        S_mesh, sigma_mesh, lambda_mesh = np.meshgrid(self.S_grid, self.sigma_values, self.lambda_grid, indexing='ij')
-
-        # Flatten meshgrid to apply functions vectorially
-        S_flat, sigma_flat, lambda_flat = S_mesh.ravel(), sigma_mesh.ravel(), lambda_mesh.ravel()
-
-        # Loop over time steps in reversed order
-        for t in reversed(range(self.T - 1)):
-            # Compute utility for all combinations of (S, sigma, b) at once
-            u_vals = np.array([[self.utility(S, sigma, b) for b in self.b_choices] for S, sigma in zip(S_flat, sigma_flat)])
-
-            # Compute state transitions for all b choices
-            S_next_vals = np.array([[self.transition_S(S, b) for b in self.b_choices] for S in S_flat])
-
-            # Find the closest indices in the state grid
-            i_next_vals = np.abs(self.S_grid[:, None] - S_next_vals.T).argmin(axis=0)  # Ensures correct broadcasting
-
-            # Compute transition probabilities for sigma
-            p1_vals = np.array([self.prob_sigma_next_is_one(sigma, lambda_val, S) for sigma, lambda_val, S in zip(sigma_flat, lambda_flat, S_flat)])
-
-            # **Fix: Compute lambda transitions correctly across b choices**
-            lambda_next_1_vals = np.array([[self.transition_lambda(lambda_val, S, sigma, 1) for b in self.b_choices] for lambda_val, S, sigma in zip(lambda_flat, S_flat, sigma_flat)])
-            lambda_next_0_vals = np.array([[self.transition_lambda(lambda_val, S, sigma, 0) for b in self.b_choices] for lambda_val, S, sigma in zip(lambda_flat, S_flat, sigma_flat)])
-
-            # Find the nearest lambda indices
-            k_next_1_vals = np.abs(self.lambda_grid[:, None] - lambda_next_1_vals.T).argmin(axis=0)
-            k_next_0_vals = np.abs(self.lambda_grid[:, None] - lambda_next_0_vals.T).argmin(axis=0)
-
-            # **Ensure Correct Broadcasting for Continuation Values**
-            cont_vals = (p1_vals[:, None] * self.V[t + 1, i_next_vals, 1, k_next_1_vals] +
-                        (1 - p1_vals[:, None]) * self.V[t + 1, i_next_vals, 0, k_next_0_vals])
-
-            # Compute total values
-            total_vals = u_vals + self.beta * cont_vals
-
-            # Get best choices
-            best_choice_indices = np.argmax(total_vals, axis=1)
-            best_value = np.max(total_vals, axis=1)
-
-            # Reshape to match meshgrid dimensions
-            self.V[t, :, :, :] = best_value.reshape(S_mesh.shape)
-            self.Policy[t, :, :, :] = np.array([self.b_choices[i] for i in best_choice_indices]).reshape(S_mesh.shape)
-
-
-
-
 
     def simulate_and_plot(self, plot=1):
         import matplotlib.pyplot as plt
