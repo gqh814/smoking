@@ -4,8 +4,8 @@ import pandas as pd
 
 class DynamicModel:
     def __init__(self, T=25, delta_S=0.5, y=10, p=1, a_sigma=-0.5, a_0=1, a_c=0.6, 
-                 a_sb=0.21, a_bsigma=-0.4, beta=0.98, a_b=0.05, S_max=50, lambda_range=100, 
-                 P=1000, delta_lambda = 0.1, lambda_bar=5):
+                 a_sb=0.21, a_bsigma=-0.4, beta=0.98, a_b=0.05, S_max=50, lambda_range=5, 
+                 P=1000, delta_lambda = 0.1, lambda_bar=2):
         self.T = T
         self.delta_S = delta_S
         self.y = y
@@ -55,6 +55,8 @@ class DynamicModel:
     def transition_lambda(self, lambda_val, S, sigma_lagged, sigma_current, t):
         lambda_val = lambda_val + self.delta_lambda *self.lambda_bar*self.med_pub[t]
 
+        if S > 0: assert np.log(self.pi_of_S(S) / self.pi_of_S(0)) > np.log((1 - self.pi_of_S(S)) / (1 - self.pi_of_S(0))), "lambda should increase more when sigma = 1"
+        else: print(np.log(self.pi_of_S(S) / self.pi_of_S(0)) > np.log((1 - self.pi_of_S(S)) / (1 - self.pi_of_S(0))), "lambda should increase more when sigma = 1")
         if sigma_lagged == 0:
             if sigma_current == 1:
                 return lambda_val + np.log(self.pi_of_S(S) / self.pi_of_S(0))
@@ -65,7 +67,7 @@ class DynamicModel:
     def prob_sigma_next_is_one(self, sigma_current, lambda_val, S):
         if sigma_current == 1:
             return 1.0
-        num = self.pi_of_S(S) * np.exp(lambda_val) + (self.pi_of_S(0) if S != 0 else 0)
+        num = self.pi_of_S(S) * np.exp(lambda_val) + (self.pi_of_S(0) if S != 0 else 0) # If not addicted, expect to be not sick. 
         return num / (1.0 + np.exp(lambda_val))
     
     def backward_induction(self):
