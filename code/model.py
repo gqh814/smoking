@@ -1,9 +1,11 @@
 import numpy as np
 import matplotlib.pyplot as plt
+import pandas as pd 
 
 class DynamicModel:
     def __init__(self, T=25, delta_S=0.5, y=10, p=1, a_sigma=-0.5, a_0=1, a_c=0.6, 
-                 a_sb=0.21, a_bsigma=-0.4, beta=0.98, a_b=0.05, S_max=50, lambda_range=100, P=1000):
+                 a_sb=0.21, a_bsigma=-0.4, beta=0.98, a_b=0.05, S_max=50, lambda_range=100, 
+                 P=1000, delta_lambda = 0.1, lambda_bar=5):
         self.T = T
         self.delta_S = delta_S
         self.y = y
@@ -16,6 +18,8 @@ class DynamicModel:
         self.beta = beta
         self.a_b = a_b
         self.P = P
+        self.delta_lambda = delta_lambda
+        self.lambda_bar = lambda_bar
 
         # Grids
         self.S_grid = np.linspace(0, S_max, 50)
@@ -25,6 +29,10 @@ class DynamicModel:
         self.lambda_grid = np.linspace(-lambda_range, lambda_range, 50)
         self.nLambda = len(self.lambda_grid)
         self.b_choices = [0, 1]
+
+        # data 
+        # df = pd.read_csv('../data/model_artpub.csv', index=False)
+        self.med_pub = np.linspace(0, 1, self.T)
 
         # Value and policy arrays
         self.V = np.zeros((self.T, self.nS, self.nSigma, self.nLambda))
@@ -44,7 +52,9 @@ class DynamicModel:
             S0 = self.S_grid[-1] / 2
         return 1.0 / (1.0 + np.exp(-k * (S - S0)))
     
-    def transition_lambda(self, lambda_val, S, sigma_lagged, sigma_current):
+    def transition_lambda(self, lambda_val, S, sigma_lagged, sigma_current, t):
+        lambda_val = lambda_val + self.delta_lambda *self.lambda_bar*self.med_pub[t]
+
         if sigma_lagged == 0:
             if sigma_current == 1:
                 return lambda_val + np.log(self.pi_of_S(S) / self.pi_of_S(0))
@@ -87,8 +97,8 @@ class DynamicModel:
                             S_next = self.transition_S(S_val, b)
                             i_next = np.argmin(np.abs(self.S_grid - S_next))
                             p1 = self.prob_sigma_next_is_one(sigma_val, lambda_val, S_val)
-                            lambda_next_1 = self.transition_lambda(lambda_val, S_val, sigma_val, 1)
-                            lambda_next_0 = self.transition_lambda(lambda_val, S_val, sigma_val, 0)
+                            lambda_next_1 = self.transition_lambda(lambda_val, S_val, sigma_val, 1, t)
+                            lambda_next_0 = self.transition_lambda(lambda_val, S_val, sigma_val, 0, t)
                             k_next_1 = np.argmin(np.abs(self.lambda_grid - lambda_next_1))
                             k_next_0 = np.argmin(np.abs(self.lambda_grid - lambda_next_0))
                             cont_val = (p1 * self.V[t + 1, i_next, 1, k_next_1] +
@@ -134,7 +144,7 @@ class DynamicModel:
 
                 # Transition lambda
                 lambda_sim[t+1, person] = self.transition_lambda(
-                    lambda_sim[t, person], S_sim[t, person], sigma_sim[t, person], sigma_sim[t+1, person]
+                    lambda_sim[t, person], S_sim[t, person], sigma_sim[t, person], sigma_sim[t+1, person], t
                 )
 
         if plot==1:
