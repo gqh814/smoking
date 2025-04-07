@@ -47,7 +47,7 @@ class DynamicModel:
         new_S = (1 - self.delta_S) * S + b
         return max(self.S_grid[0], min(new_S, self.S_grid[-1]))
     
-    def pi_of_S(self, S, k=0.1, S0=None):
+    def pi_of_S(self, S, k=0.05, S0=None):
         if S0 is None:
             S0 = self.S_grid[-1] / 2
         return 1.0 / (1.0 + np.exp(-k * (S - S0)))
@@ -85,7 +85,6 @@ class DynamicModel:
                     self.Policy[t, i, j, k] = best_choice
         
         # Earlier periods
-
         for t in reversed(range(self.T - 1)):
             for i, S_val in enumerate(self.S_grid):
                 for j, sigma_val in enumerate(self.sigma_values):
@@ -129,7 +128,6 @@ class DynamicModel:
             # Update self.V and self.P where utility is greater than existing value
             self.V[self.T - 1][mask] = u[mask]
             self.Policy[self.T - 1][mask] = b
-            # print(np.shape(self.V), np.shape(mask))
 
         # ---------- All earlier periods (t = T-2 to 0) ----------
         for t in reversed(range(self.T - 1)):
@@ -140,17 +138,14 @@ class DynamicModel:
                 S_next = (1 - self.delta_S) * S_mat + b
                 S_next = np.clip(S_next, S_grid[0], S_grid[-1])
                 i_next = np.abs(S_next[..., None] - S_grid).argmin(axis=-1)  # Find closest next state index
-                print(np.shape(S_next), np.shape(i_next))
+                
                 # Probability of sigma_next being 1 (sick)
                 pi_S = self.pi_of_S(S_mat)
-                p1 = np.where(sigma_mat == 1, 1.0,
-                            (pi_S * np.exp(lambda_mat) + (self.pi_of_S(0) if S_mat.any()!=0 else 0)) / (1 + np.exp(lambda_mat)))
 
-                    # def prob_sigma_next_is_one(self, sigma_current, lambda_val, S):
-                    #     if sigma_current == 1:
-                    #         return 1.0
-                    #     num = self.pi_of_S(S) * np.exp(lambda_val) + (self.pi_of_S(0) if S != 0 else 0) # If not addicted, expect to be not sick. 
-                    #     return num / (1.0 + np.exp(lambda_val))
+                S_0 = np.where(S_mat == 0, 0, self.pi_of_S(0)) # If not addicted, expect sick with probability 0.
+                p1 = np.where(sigma_mat == 1, 1.0,
+                            (pi_S * np.exp(lambda_mat) + S_0) / (1 + np.exp(lambda_mat)))
+
                 # Transition lambda for both sigma_next = 0 and sigma_next = 1
                 lambda_base = lambda_mat + self.delta_lambda * self.lambda_bar * self.med_pub[t]
                 pi_0 = self.pi_of_S(0)
@@ -171,6 +166,7 @@ class DynamicModel:
 
                 # Total value = current utility + discounted continuation value
                 total_val = u + self.beta * cont_val
+                assert total_val.all() > 0, "Total value should be greater than 0"  
 
                 # Mask to identify where total value exceeds current V and update accordingly
                 mask = total_val > self.V[t]
